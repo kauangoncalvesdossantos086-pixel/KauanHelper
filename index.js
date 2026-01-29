@@ -1,3 +1,7 @@
+// ==========================================
+//        KAUAN HELPER - SISTEMA COMPLETO
+// ==========================================
+
 const { 
     Client, 
     GatewayIntentBits, 
@@ -17,11 +21,20 @@ const axios = require('axios');
 const express = require('express');
 
 // ==========================================
-//        CONFIGURAÇÃO E ANTI-SONO
+//        CONFIGURAÇÃO DO SERVIDOR WEB
 // ==========================================
+
 const app = express();
-app.get('/', (req, res) => res.send('KauanHelper Full System Online! 🚀🐯'));
-app.listen(3000, () => console.log('📡 [SERVIDOR] Monitoramento HTTP ativo na porta 3000'));
+app.get('/', (req, res) => {
+    res.send('KauanHelper Full System Online! 🚀🐯');
+});
+app.listen(3000, () => {
+    console.log('📡 [SERVIDOR] Monitoramento HTTP ativo na porta 3000');
+});
+
+// ==========================================
+//          INSTÂNCIA DO CLIENTE
+// ==========================================
 
 const client = new Client({
     intents: [
@@ -29,14 +42,21 @@ const client = new Client({
         GatewayIntentBits.GuildMessages, 
         GatewayIntentBits.MessageContent, 
         GatewayIntentBits.GuildMembers,
-        GatewayIntentBits.DirectMessages
+        GatewayIntentBits.DirectMessages,
+        GatewayIntentBits.GuildModeration
     ],
-    partials: [Partials.Channel, Partials.Message, Partials.User]
+    partials: [
+        Partials.Channel, 
+        Partials.Message, 
+        Partials.User,
+        Partials.GuildMember
+    ]
 });
 
 // ==========================================
-//            VARIÁVEIS GLOBAIS
+//            VARIÁVEIS DE ESTADO
 // ==========================================
+
 const MEU_ID = "1228447123490476143"; 
 const CANAL_AVALIACOES_ID = "1460383106639855748"; 
 
@@ -45,40 +65,92 @@ let lastDeletedMessage = {};
 let blacklist = []; 
 
 // ==========================================
-//      REGISTRO DE COMANDOS DE BARRA
+//      DEFINIÇÃO DOS COMANDOS SLASH (/)
 // ==========================================
+
 const commands = [
-    { name: 'lock', description: '🔒 Abre o painel de controle de tranca do canal.' },
-    { name: 'ticket', description: '🎫 Abre a central de atendimento para suporte ou compras.' },
-    { name: 'pix', description: '💸 Exibe as chaves de pagamento via PIX.' },
-    { name: 'faq', description: '❓ Veja as perguntas mais frequentes dos clientes.' },
-    { name: 'traduzir', description: '🇧🇷 Traduz um texto automaticamente para português.', options: [{ name: 'texto', type: 3, description: 'Texto para traduzir', required: true }] },
-    { name: 'close', description: '🔒 Fecha o ticket atual permanentemente.' },
-    { name: 'snipe', description: '🎯 Mostra a última mensagem que foi apagada no canal.' },
-    { name: 'id', description: '🆔 Pega o ID de um usuário específico.', options: [{ name: 'usuario', type: 6, description: 'Selecione o usuário' }] },
-    { name: 'estoque', description: '📦 Ver ou alterar o status do estoque de Robux.', options: [{ name: 'status', type: 3, description: 'Novo status (Dono apenas)' }] },
-    { name: 'calc', description: '📊 Calcula quanto você recebe ou quanto deve cobrar.', options: [{ name: 'valor', type: 4, description: 'Valor base para o cálculo', required: true }] },
-    { name: 'vouch', description: '⭐ Envia uma avaliação para o canal oficial.', options: [{ name: 'relato', type: 3, description: 'Seu comentário sobre a venda', required: true }] },
-    { name: 'blacklist', description: '🚫 Gerencia a lista negra do bot.', options: [{ name: 'usuario_id', type: 3, description: 'ID do usuário', required: true }] },
-    { name: 'ajuda', description: '📚 Mostra a lista completa de comandos do bot.' }
+    {
+        name: 'ajuda',
+        description: '📚 Lista completa de todos os comandos do bot.'
+    },
+    {
+        name: 'ticket',
+        description: '🎫 Abre a central de atendimento para suporte ou compras.'
+    },
+    {
+        name: 'lock',
+        description: '🔒 Abre o painel de controle para gerenciar o canal.'
+    },
+    {
+        name: 'pix',
+        description: '💸 Exibe as chaves de pagamento e métodos PIX.'
+    },
+    {
+        name: 'faq',
+        description: '❓ Perguntas frequentes e dúvidas comuns dos clientes.'
+    },
+    {
+        name: 'traduzir',
+        description: '🇧🇷 Traduz um texto automaticamente para português.',
+        options: [{ name: 'texto', type: 3, description: 'O texto que deseja traduzir', required: true }]
+    },
+    {
+        name: 'close',
+        description: '🔒 Encerra o ticket atual de forma definitiva.'
+    },
+    {
+        name: 'snipe',
+        description: '🎯 Mostra a última mensagem que foi apagada neste canal.'
+    },
+    {
+        name: 'id',
+        description: '🆔 Pega o ID de um usuário ou o seu próprio.',
+        options: [{ name: 'usuario', type: 6, description: 'Selecione o usuário', required: false }]
+    },
+    {
+        name: 'estoque',
+        description: '📦 Ver ou alterar o status do estoque de Robux.',
+        options: [{ name: 'status', type: 3, description: 'Novo status do estoque', required: false }]
+    },
+    {
+        name: 'calc',
+        description: '📊 Calcula taxas de 70% e valores de cobrança.',
+        options: [{ name: 'valor', type: 4, description: 'Valor base para calcular', required: true }]
+    },
+    {
+        name: 'vouch',
+        description: '⭐ Envia uma avaliação positiva para o canal oficial.',
+        options: [{ name: 'relato', type: 3, description: 'Conte como foi sua compra', required: true }]
+    },
+    {
+        name: 'blacklist',
+        description: '🚫 Gerencia usuários proibidos de usar o bot.',
+        options: [{ name: 'id', type: 3, description: 'ID do usuário para banir/desbanir', required: true }]
+    },
+    {
+        name: 'preços',
+        description: '💰 Exibe a tabela oficial de preços de Robux.'
+    }
 ];
 
 // ==========================================
-//            EVENTO DE INICIALIZAÇÃO
+//            EVENTO: READY (ON)
 // ==========================================
+
 client.once('ready', async () => {
     console.log('==========================================');
-    console.log(`✅ LOGADO COMO: ${client.user.tag}`);
+    console.log(`✅ LOGADO COM SUCESSO: ${client.user.tag}`);
     console.log(`🆔 ID DO BOT: ${client.user.id}`);
+    console.log(`🐯 PRONTO PARA ATENDER OS CLIENTES`);
     console.log('==========================================');
 
     const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
     try {
-        console.log('🚀 Sincronizando comandos de barra (/)...');
+        console.log('🚀 Sincronizando comandos globais no Discord...');
         await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
-        console.log('✅ Comandos registrados com sucesso!');
+        console.log('✅ Todos os comandos de barra (/) foram registrados!');
     } catch (error) {
-        console.error('❌ Erro ao registrar comandos:', error);
+        console.error('❌ Erro crítico no registro de comandos:', error);
     }
 
     client.user.setPresence({
@@ -90,49 +162,66 @@ client.once('ready', async () => {
 // ==========================================
 //          SISTEMA DEDO DURO (SNIPE)
 // ==========================================
+
 client.on('messageDelete', async (message) => {
-    if (!message || !message.author || message.author.bot || !message.guild) return;
+    // Verificação de segurança para evitar crash no Render
+    if (!message || !message.author || message.author.bot || !message.guild) {
+        return;
+    }
+
     lastDeletedMessage[message.channel.id] = {
-        content: message.content,
+        content: message.content || "Mensagem sem texto detectada.",
         author: message.author,
         tag: message.author.tag,
-        image: message.attachments.first()?.proxyURL,
+        image: message.attachments.first()?.proxyURL || null,
         timestamp: new Date()
     };
 });
 
 // ==========================================
-//          PROCESSAMENTO DE SEGURANÇA
+//         SISTEMA DE MODERAÇÃO AUTO
 // ==========================================
+
 client.on('messageCreate', async (message) => {
     if (!message.author || message.author.bot || !message.guild) return;
-    if (blacklist.includes(message.author.id)) return;
 
-    // --- ANTI-LINK AUTOMÁTICO ---
-    const links = ["discord.gg/", "http://", "https://"];
-    if (links.some(link => message.content.toLowerCase().includes(link))) {
+    // Filtro de Blacklist
+    if (blacklist.includes(message.author.id)) {
+        return;
+    }
+
+    // --- SISTEMA ANTI-LINK ---
+    const proibidos = ["discord.gg/", "http://", "https://", "discord.com/invite"];
+    if (proibidos.some(link => message.content.toLowerCase().includes(link))) {
         if (message.author.id !== MEU_ID && !message.member.permissions.has(PermissionFlagsBits.Administrator)) {
             try {
                 await message.delete();
-                return message.channel.send(`⚠️ **${message.author.username}**, o envio de links é proibido!`)
-                    .then(msg => setTimeout(() => msg.delete(), 6000));
-            } catch (err) { console.log("Erro no Anti-link"); }
+                const aviso = await message.channel.send(`⚠️ **${message.author.username}**, o envio de links externos é estritamente proibido aqui!`);
+                setTimeout(() => aviso.delete().catch(() => {}), 6000);
+                return;
+            } catch (err) {
+                console.log("Erro ao tentar deletar link proibido.");
+            }
         }
     }
 
     // --- LOG DE MENÇÃO AO DONO ---
     if (message.mentions.has(MEU_ID) && message.author.id !== MEU_ID) {
-        const canalLog = message.guild.channels.cache.find(c => c.name.includes('logs'));
+        const canalLog = message.guild.channels.cache.find(c => c.name.includes('logs') || c.name.includes('menções'));
         if (canalLog) {
-            const embedLogM = new EmbedBuilder()
-                .setTitle('🚨 ALERTA DE MENÇÃO')
+            const embedMenção = new EmbedBuilder()
+                .setTitle('🚨 ALERTA DE MENÇÃO DETECTADA')
                 .setColor('#FF0000')
+                .setThumbnail(message.author.displayAvatarURL())
                 .addFields(
-                    { name: '👤 Usuário:', value: `${message.author.tag}`, inline: true },
-                    { name: '📍 Canal:', value: `${message.channel}`, inline: true },
-                    { name: '💬 Mensagem:', value: message.content || "*Anexo*" }
-                ).setTimestamp();
-            canalLog.send({ content: `<@${MEU_ID}>`, embeds: [embedLogM] });
+                    { name: '👤 Usuário:', value: `${message.author.tag} (\`${message.author.id}\`)`, inline: false },
+                    { name: '📍 Localização:', value: `${message.channel}`, inline: true },
+                    { name: '💬 Mensagem Enviada:', value: message.content || "*Conteúdo não textual*", inline: false }
+                )
+                .setTimestamp()
+                .setFooter({ text: 'Sistema de Monitoramento Tigre Bux' });
+
+            canalLog.send({ content: `<@${MEU_ID}>`, embeds: [embedMenção] });
         }
     }
 });
@@ -140,175 +229,182 @@ client.on('messageCreate', async (message) => {
 // ==========================================
 //        LÓGICA DE INTERAÇÕES (SLASH)
 // ==========================================
-client.on('interactionCreate', async (interaction) => {
-    if (blacklist.includes(interaction.user.id)) return interaction.reply({ content: "🚫 Você está na blacklist e não pode usar o bot.", ephemeral: true });
 
+client.on('interactionCreate', async (interaction) => {
+    // Bloqueio de Blacklist nas interações
+    if (blacklist.includes(interaction.user.id)) {
+        return interaction.reply({ content: "🚫 Você está banido de utilizar as funções deste bot.", ephemeral: true });
+    }
+
+    // --- PROCESSAMENTO DE COMANDOS DE CHAT ---
     if (interaction.isChatInputCommand()) {
         const { commandName, options, user, channel, member, guild } = interaction;
 
+        // COMANDO: LOCK
         if (commandName === 'lock') {
-            if (!member.permissions.has(PermissionFlagsBits.ManageChannels)) return interaction.reply({ content: "🚫 Você não tem permissão para gerenciar canais.", ephemeral: true });
+            if (!member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+                return interaction.reply({ content: "🚫 Você não possui permissão de `Gerenciar Canais`!", ephemeral: true });
+            }
+            
             const embedLock = new EmbedBuilder()
-                .setTitle('🔒 Painel de Controle')
-                .setDescription('Gerencie a trava e a limpeza deste canal nos botões abaixo.')
+                .setTitle('🔒 Painel de Controle Administrativo')
+                .setDescription('Utilize os botões abaixo para gerenciar o estado deste canal em tempo real.')
                 .setColor('#2b2d31')
-                .setFooter({ text: 'Segurança Tigre Bux' });
+                .addFields(
+                    { name: 'Bloquear:', value: 'Ninguém poderá enviar mensagens.', inline: true },
+                    { name: 'Desbloquear:', value: 'O chat volta ao normal.', inline: true }
+                );
 
-            const row = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId('btn_lock').setLabel('Bloquear').setEmoji('🔒').setStyle(ButtonStyle.Danger),
-                new ButtonBuilder().setCustomId('btn_unlock').setLabel('Desbloquear').setEmoji('🔓').setStyle(ButtonStyle.Success),
-                new ButtonBuilder().setCustomId('btn_clear').setLabel('Limpar Mensagens').setEmoji('🗑️').setStyle(ButtonStyle.Secondary)
+            const rowLock = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId('btn_lock').setLabel('Trancar Canal').setEmoji('🔒').setStyle(ButtonStyle.Danger),
+                new ButtonBuilder().setCustomId('btn_unlock').setLabel('Abrir Canal').setEmoji('🔓').setStyle(ButtonStyle.Success),
+                new ButtonBuilder().setCustomId('btn_clear').setLabel('Limpar Tudo').setEmoji('🗑️').setStyle(ButtonStyle.Secondary)
             );
-            return interaction.reply({ embeds: [embedLock], components: [row] });
+
+            return interaction.reply({ embeds: [embedLock], components: [rowLock] });
         }
 
+        // COMANDO: TICKET
         if (commandName === 'ticket') {
             const embedTicket = new EmbedBuilder()
-                .setTitle('🎫 Central de Atendimento')
-                .setDescription('Selecione uma categoria abaixo para abrir um ticket.')
-                .setColor('#2b2d31');
+                .setTitle('🎫 Central de Suporte - KauanHelper')
+                .setDescription('Para um atendimento rápido e eficiente, escolha a categoria que melhor define sua necessidade.')
+                .setColor('#00FF00')
+                .setImage('https://i.imgur.com/link_da_sua_imagem.png');
 
-            const menu = new ActionRowBuilder().addComponents(
+            const menuTicket = new ActionRowBuilder().addComponents(
                 new StringSelectMenuBuilder()
                     .setCustomId('select_ticket')
-                    .setPlaceholder('Escolha o motivo...')
+                    .setPlaceholder('Selecione o motivo do seu contato...')
                     .addOptions([
-                        { label: 'Compras', description: 'Comprar Robux ou itens.', value: 'compras', emoji: '💸' },
-                        { label: 'Blox Fruits', description: 'Itens de Blox Fruits.', value: 'bloxfruits', emoji: '🍎' },
-                        { label: 'Suporte', description: 'Dúvidas gerais.', value: 'suporte', emoji: '🆘' },
-                        { label: 'Denúncias', description: 'Denunciar usuários.', value: 'denuncias', emoji: '🔨' },
+                        { label: 'Compras Robux', description: 'Desejo adquirir Robux com o melhor preço.', value: 'compras', emoji: '💸' },
+                        { label: 'Blox Fruits', description: 'Comprar frutas ou serviços de up.', value: 'bloxfruits', emoji: '🍎' },
+                        { label: 'Suporte Técnico', description: 'Dúvidas sobre entregas ou erros.', value: 'suporte', emoji: '🆘' },
+                        { label: 'Denúncias', description: 'Reportar comportamentos inadequados.', value: 'denuncias', emoji: '🔨' }
                     ])
             );
-            return interaction.reply({ embeds: [embedTicket], components: [menu] });
+
+            return interaction.reply({ embeds: [embedTicket], components: [menuTicket] });
         }
 
+        // COMANDO: PIX
         if (commandName === 'pix') {
-            const embed = new EmbedBuilder()
-                .setTitle('💸 Pagamento PIX')
-                .setDescription('Chave: `SUA_CHAVE_AQUI` \n\nEnvie o comprovante no ticket!')
-                .setColor('#00FFFF');
-            return interaction.reply({ embeds: [embed] });
-        }
-
-        if (commandName === 'faq') {
-            const embed = new EmbedBuilder()
-                .setTitle('❓ FAQ - Perguntas Frequentes')
-                .setColor('#FFA500')
+            const embedPix = new EmbedBuilder()
+                .setTitle('💸 Informações de Pagamento PIX')
+                .setDescription('Após realizar o pagamento, envie o comprovante imediatamente no seu ticket aberto.')
                 .addFields(
-                    { name: 'É confiável?', value: 'Sim! Veja nossas avaliações em <#1460383106639855748>.' },
-                    { name: 'Qual o prazo?', value: 'Entrega imediata após confirmação.' },
-                    { name: 'Formas de pagamento?', value: 'PIX, Cartão e Saldo.' }
-                );
-            return interaction.reply({ embeds: [embed] });
-        }
-
-        if (commandName === 'traduzir') {
-            const txt = options.getString('texto');
-            try {
-                const res = await axios.get(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=pt&dt=t&q=${encodeURI(txt)}`);
-                return interaction.reply(`🇧🇷 **Tradução:** ${res.data[0][0][0]}`);
-            } catch (e) { return interaction.reply("❌ Erro ao traduzir."); }
-        }
-
-        if (commandName === 'close') {
-            if (!channel.name.startsWith('ticket-')) return interaction.reply({ content: "❌ Este comando só pode ser usado dentro de um ticket.", ephemeral: true });
-            if (user.id === MEU_ID || member.permissions.has(PermissionFlagsBits.Administrator)) {
-                await interaction.reply("🔒 **Encerrando ticket em 5 segundos...**");
-                setTimeout(() => channel.delete().catch(() => {}), 5000);
-            } else {
-                return interaction.reply({ content: "🚫 Apenas administradores podem fechar tickets.", ephemeral: true });
-            }
-        }
-
-        if (commandName === 'snipe') {
-            const msg = lastDeletedMessage[channel.id];
-            if (!msg) return interaction.reply({ content: "❌ Nenhuma mensagem apagada recentemente.", ephemeral: true });
-            const e = new EmbedBuilder().setAuthor({ name: msg.tag }).setDescription(msg.content || "Anexo/Imagem").setColor('#800080');
-            if (msg.image) e.setImage(msg.image);
-            return interaction.reply({ embeds: [e] });
-        }
-
-        if (commandName === 'id') {
-            const target = options.getUser('usuario') || user;
-            return interaction.reply(`🆔 ID: \`${target.id}\``);
-        }
-
-        if (commandName === 'estoque') {
-            const novoStatus = options.getString('status');
-            if (user.id === MEU_ID && novoStatus) {
-                estoqueRobux = novoStatus;
-                return interaction.reply(`✅ Estoque atualizado para: **${estoqueRobux}**`);
-            }
-            return interaction.reply(`📦 Estoque atual: **${estoqueRobux}**`);
-        }
-
-        if (commandName === 'calc') {
-            const v = options.getInteger('valor');
-            return interaction.reply(`📊 Recebe: **${Math.floor(v * 0.7)}** | Cobrar: **${Math.ceil(v / 0.7)}**`);
-        }
-
-        if (commandName === 'vouch') {
-            const relato = options.getString('relato');
-            const canalV = client.channels.cache.get(CANAL_AVALIACOES_ID);
-            if (canalV) {
-                canalV.send({ embeds: [new EmbedBuilder().setTitle('⭐ Nova Avaliação!').setDescription(relato).setColor('#FFFF00').setFooter({ text: `Por: ${user.tag}` })] });
-                return interaction.reply({ content: "✅ Vouch enviado com sucesso!", ephemeral: true });
-            }
-        }
-
-        if (commandName === 'blacklist') {
-            if (user.id !== MEU_ID) return interaction.reply({ content: "🚫 Comando restrito ao dono.", ephemeral: true });
-            const alvo = options.getString('usuario_id');
-            if (blacklist.includes(alvo)) {
-                blacklist = blacklist.filter(id => id !== alvo);
-                return interaction.reply(`✅ <@${alvo}> foi removido da blacklist.`);
-            } else {
-                blacklist.push(alvo);
-                return interaction.reply(`🚫 <@${alvo}> foi adicionado à blacklist.`);
-            }
-        }
-
-        if (commandName === 'ajuda') {
-            const e = new EmbedBuilder()
-                .setTitle('📚 Central de Comandos - KauanHelper')
-                .setDescription('Agora todos os comandos utilizam `/` para maior segurança e facilidade.')
-                .setColor('#2b2d31')
-                .addFields(
-                    { name: '🎫 Atendimento', value: '`/ticket`, `/close`' },
-                    { name: '💰 Vendas/Loja', value: '`/estoque`, `/pix`, `/calc`, `/vouch`, `/faq`' },
-                    { name: '🛠️ Moderação', value: '`/lock`, `/blacklist`, `/snipe`' },
-                    { name: '🌐 Geral', value: '`/id`, `/traduzir`' }
+                    { name: '🔑 Chave PIX (E-mail):', value: '`SUA_CHAVE_AQUI`', inline: false },
+                    { name: '👤 Nome do Favorecido:', value: '`SEU_NOME_AQUI`', inline: true },
+                    { name: '🏦 Banco:', value: '`NUBANK / INTER`', inline: true }
                 )
-                .setFooter({ text: 'Tigre Bux - O melhor preço sempre!' });
-            return interaction.reply({ embeds: [e] });
+                .setColor('#00FFFF')
+                .setFooter({ text: 'Pagamentos via PIX são aprovados na hora!' });
+
+            return interaction.reply({ embeds: [embedPix] });
+        }
+
+        // COMANDO: CALC
+        if (commandName === 'calc') {
+            const valorCalculo = options.getInteger('valor');
+            const recebe = Math.floor(valorCalculo * 0.7);
+            const cobra = Math.ceil(valorCalculo / 0.7);
+
+            const embedCalc = new EmbedBuilder()
+                .setTitle('📊 Calculadora de Taxas (Roblox 30%)')
+                .setColor('#FFFF00')
+                .addFields(
+                    { name: '💰 Se você vender por:', value: `R$ ${valorCalculo}`, inline: true },
+                    { name: '📩 Você receberá:', value: `R$ ${recebe}`, inline: true },
+                    { name: '📈 Para receber o valor limpo, cobre:', value: `R$ ${cobra}`, inline: false }
+                );
+
+            return interaction.reply({ embeds: [embedCalc] });
+        }
+
+        // COMANDO: SNIPE
+        if (commandName === 'snipe') {
+            const dadosSnipe = lastDeletedMessage[channel.id];
+            if (!dadosSnipe) {
+                return interaction.reply({ content: "❌ Não há registros de mensagens apagadas recentemente neste canal.", ephemeral: true });
+            }
+
+            const embedSnipe = new EmbedBuilder()
+                .setAuthor({ name: `Mensagem de ${dadosSnipe.tag}`, iconURL: dadosSnipe.author.displayAvatarURL() })
+                .setDescription(`**Conteúdo:**\n${dadosSnipe.content}`)
+                .setColor('#800080')
+                .setTimestamp(dadosSnipe.timestamp);
+
+            if (dadosSnipe.image) {
+                embedSnipe.setImage(dadosSnipe.image);
+            }
+
+            return interaction.reply({ embeds: [embedSnipe] });
+        }
+
+        // COMANDO: CLOSE
+        if (commandName === 'close') {
+            if (!channel.name.startsWith('ticket-')) {
+                return interaction.reply({ content: "❌ Este comando só é válido dentro de canais de ticket.", ephemeral: true });
+            }
+            
+            await interaction.reply("🔒 **O ticket será encerrado e deletado em 5 segundos...**");
+            setTimeout(() => {
+                channel.delete().catch(() => {
+                    console.log("Erro ao deletar canal de ticket.");
+                });
+            }, 5000);
+        }
+
+        // COMANDO: AJUDA
+        if (commandName === 'ajuda') {
+            const embedAjuda = new EmbedBuilder()
+                .setTitle('📚 Guia de Comandos - KauanHelper')
+                .setDescription('Bem-vindo ao sistema de ajuda! Todos os nossos comandos agora utilizam a tecnologia Slash (/) do Discord.')
+                .addFields(
+                    { name: '🎫 Atendimento:', value: '`/ticket`, `/close`', inline: true },
+                    { name: '💰 Economia:', value: '`/pix`, `/calc`, `/estoque`, `/vouch`', inline: true },
+                    { name: '🛠️ Moderação:', value: '`/lock`, `/snipe`, `/blacklist`', inline: true },
+                    { name: '🌐 Utilidades:', value: '`/id`, `/traduzir`, `/faq`, `/preços`', inline: true }
+                )
+                .setColor('#2b2d31')
+                .setFooter({ text: 'Tigre Bux - Qualidade e Segurança' });
+
+            return interaction.reply({ embeds: [embedAjuda] });
         }
     }
 
-    // --- LÓGICA DE BOTÕES ---
+    // --- PROCESSAMENTO DE BOTÕES ---
     if (interaction.isButton()) {
-        if (!interaction.member.permissions.has(PermissionFlagsBits.ManageChannels)) return interaction.reply({ content: "🚫 Sem permissão!", ephemeral: true });
+        const { customId, member, channel, guild } = interaction;
 
-        if (interaction.customId === 'btn_lock') {
-            await interaction.channel.permissionOverwrites.edit(interaction.guild.id, { SendMessages: false });
-            return interaction.reply({ content: "🔒 Canal bloqueado com sucesso!", ephemeral: true });
+        if (!member.permissions.has(PermissionFlagsBits.ManageChannels)) {
+            return interaction.reply({ content: "🚫 Apenas moderadores podem usar estes botões.", ephemeral: true });
         }
-        if (interaction.customId === 'btn_unlock') {
-            await interaction.channel.permissionOverwrites.edit(interaction.guild.id, { SendMessages: true });
-            return interaction.reply({ embeds: [new EmbedBuilder().setDescription('🔓 **Canal desbloqueado por um administrador!**').setColor('#00FF00')] });
+
+        if (customId === 'btn_lock') {
+            await channel.permissionOverwrites.edit(guild.id, { SendMessages: false });
+            return interaction.reply({ content: "🔒 Canal devidamente bloqueado para membros!", ephemeral: true });
         }
-        if (interaction.customId === 'btn_clear') {
-            const msgs = await interaction.channel.messages.fetch({ limit: 100 });
-            const clean = msgs.filter(m => m.id !== interaction.message.id);
-            await interaction.channel.bulkDelete(clean, true).catch(() => {});
-            return interaction.reply({ content: "🗑️ Chat limpo!", ephemeral: true });
+
+        if (customId === 'btn_unlock') {
+            await channel.permissionOverwrites.edit(guild.id, { SendMessages: true });
+            return interaction.reply({ content: "🔓 Canal desbloqueado com sucesso!", ephemeral: false });
+        }
+
+        if (customId === 'btn_clear') {
+            const mensagensParaDeletar = await channel.messages.fetch({ limit: 100 });
+            const filtradas = mensagensParaDeletar.filter(m => m.id !== interaction.message.id);
+            await channel.bulkDelete(filtradas, true);
+            return interaction.reply({ content: "🗑️ O chat foi limpo com sucesso (mensagens com mais de 14 dias não podem ser apagadas).", ephemeral: true });
         }
     }
 
-    // --- LÓGICA DE TICKETS ---
+    // --- PROCESSAMENTO DE TICKETS (SELECT MENU) ---
     if (interaction.isStringSelectMenu() && interaction.customId === 'select_ticket') {
-        const cat = interaction.values[0];
-        const canal = await interaction.guild.channels.create({
-            name: `ticket-${cat}-${interaction.user.username.toLowerCase()}`,
+        const categoriaSelecionada = interaction.values[0];
+        
+        const canalTicket = await interaction.guild.channels.create({
+            name: `ticket-${categoriaSelecionada}-${interaction.user.username}`,
             type: ChannelType.GuildText,
             permissionOverwrites: [
                 { id: interaction.guild.id, deny: [PermissionFlagsBits.ViewChannel] },
@@ -316,10 +412,23 @@ client.on('interactionCreate', async (interaction) => {
                 { id: MEU_ID, allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ManageChannels] }
             ],
         });
-        await canal.send({ content: `${interaction.user} | <@${MEU_ID}>`, embeds: [new EmbedBuilder().setTitle(`Ticket: ${cat.toUpperCase()}`).setDescription("Olá! Explique sua dúvida e aguarde o dono.").setColor('#00FF00')] });
-        await interaction.reply({ content: `✅ Seu ticket foi criado: ${canal}`, ephemeral: true });
+
+        const embedBoasVindas = new EmbedBuilder()
+            .setTitle(`Novo Ticket: ${categoriaSelecionada.toUpperCase()}`)
+            .setDescription(`Olá ${interaction.user}, seja bem-vindo ao seu atendimento individual.\n\nPor favor, descreva detalhadamente sua dúvida ou pedido abaixo e aguarde o <@${MEU_ID}> responder.`)
+            .setColor('#00FF00')
+            .setTimestamp();
+
+        await canalTicket.send({ content: `${interaction.user} | <@${MEU_ID}>`, embeds: [embedBoasVindas] });
+        await interaction.reply({ content: `✅ Seu ticket foi aberto com sucesso em: ${canalTicket}`, ephemeral: true });
     }
 });
 
+// ==========================================
+//          LOGIN FINAL DO BOT
+// ==========================================
+
 client.login(process.env.TOKEN);
-        
+
+// FINAL DO CÓDIGO - KAUAN HELPER V3.0
+    
