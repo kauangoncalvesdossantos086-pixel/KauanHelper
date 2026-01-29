@@ -11,7 +11,7 @@ const {
     PermissionFlagsBits,
     ActivityType,
     REST,
-    Routes
+    Routes 
 } = require('discord.js');
 const axios = require('axios');
 const express = require('express');
@@ -45,16 +45,17 @@ let estoqueRobux = "Disponível ✅";
 let lastDeletedMessage = {};
 let blacklist = []; 
 
-// DEFINIÇÃO DOS SLASH COMMANDS
-const commands = [
-    { name: 'ajuda', description: 'Mostra a central de comandos' },
-    { name: 'pix', description: 'Mostra a chave PIX para pagamento' },
-    { name: 'faq', description: 'Perguntas frequentes' },
-    { name: 'estoque', description: 'Verifica o estoque atual de Robux' },
-    { name: 'id', description: 'Mostra o seu ID ou de um usuário', options: [{ name: 'usuario', type: 6, description: 'Selecione o usuário', required: false }] },
-    { name: 'calc', description: 'Calculadora de taxas', options: [{ name: 'valor', type: 4, description: 'Valor para calcular', required: true }] },
+// LISTA DE COMANDOS PARA O DISCORD RECONHECER O /
+const slashCommands = [
+    { name: 'ajuda', description: 'Central de comandos' },
     { name: 'ticket', description: 'Abre o menu de tickets' },
-    { name: 'lock', description: 'Abre o painel de trancar canal' }
+    { name: 'lock', description: 'Painel de controle de trava' },
+    { name: 'pix', description: 'Chave de pagamento' },
+    { name: 'faq', description: 'Dúvidas frequentes' },
+    { name: 'estoque', description: 'Ver estoque de Robux' },
+    { name: 'calc', description: 'Calculadora de taxas', options: [{name: 'valor', type: 4, description: 'Valor', required: true}] },
+    { name: 'id', description: 'Ver ID de um usuário', options: [{name: 'user', type: 6, description: 'Usuário'}] },
+    { name: 'snipe', description: 'Ver última mensagem apagada' }
 ];
 
 // ==========================================
@@ -66,15 +67,12 @@ client.once('ready', async () => {
     console.log(`🆔 ID DO BOT: ${client.user.id}`);
     console.log('==========================================');
 
-    // Registrar Slash Commands
+    // REGISTRAR COMANDOS DE BARRA
     const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
     try {
-        console.log('🚀 Registrando comandos de barra (/)');
-        await rest.put(Routes.applicationCommands(client.user.id), { body: commands });
-        console.log('✅ Comandos registrados com sucesso!');
-    } catch (error) {
-        console.error(error);
-    }
+        await rest.put(Routes.applicationCommands(client.user.id), { body: slashCommands });
+        console.log('🚀 Comandos de barra (/) registrados!');
+    } catch (e) { console.log("Erro ao registrar comandos /"); }
 
     client.user.setPresence({
         activities: [{ name: 'Tigre Bux 🐯 | !ajuda', type: ActivityType.Watching }],
@@ -97,7 +95,7 @@ client.on('messageDelete', async (message) => {
 });
 
 // ==========================================
-//          PROCESSAMENTO DE MENSAGENS (PREFIXO)
+//          PROCESSAMENTO DE MENSAGENS
 // ==========================================
 client.on('messageCreate', async (message) => {
     if (message.author.bot || !message.guild) return;
@@ -133,34 +131,22 @@ client.on('messageCreate', async (message) => {
     const args = message.content.slice(PREFIXO.length).trim().split(/ +/);
     const comando = args.shift().toLowerCase();
 
-    // Reutilizando lógica nos comandos de mensagem
-    if (comando === 'lock') handleLock(message);
-    if (comando === 'ticket') handleTicket(message);
-    if (comando === 'pix') handlePix(message);
-    if (comando === 'faq') handleFaq(message);
-    if (comando === 'ajuda' || comando === 'help') handleAjuda(message);
-    if (comando === 'estoque') handleEstoque(message, args);
-    if (comando === 'id') handleId(message, message.mentions.users.first() || message.author);
-    if (comando === 'calc') handleCalc(message, args[0]);
+    // EXECUTAR COMANDO DE PREFIXO
+    executarComando(comando, args, message);
 });
 
 // ==========================================
-//        LÓGICA DE INTERAÇÕES (SLASH & COMPONENTES)
+//        LÓGICA DE INTERAÇÕES (SLASH)
 // ==========================================
 client.on('interactionCreate', async (i) => {
-    // TRATAMENTO DE SLASH COMMANDS
     if (i.isChatInputCommand()) {
-        if (i.commandName === 'ajuda') handleAjuda(i);
-        if (i.commandName === 'pix') handlePix(i);
-        if (i.commandName === 'faq') handleFaq(i);
-        if (i.commandName === 'ticket') handleTicket(i);
-        if (i.commandName === 'lock') handleLock(i);
-        if (i.commandName === 'estoque') handleEstoque(i);
-        if (i.commandName === 'calc') handleCalc(i, i.options.getInteger('valor'));
-        if (i.commandName === 'id') handleId(i, i.options.getUser('usuario') || i.user);
+        const args = i.options.getInteger('valor') ? [i.options.getInteger('valor').toString()] : [];
+        if (i.options.getUser('user')) args.push(i.options.getUser('user').id);
+        
+        // Simular o comportamento do comando para Slash
+        await executarComando(i.commandName, args, i);
     }
 
-    // TRATAMENTO DE BOTÕES
     if (i.isButton()) {
         if (!i.member.permissions.has(PermissionFlagsBits.ManageChannels)) return i.reply({ content: "🚫 Sem permissão!", ephemeral: true });
 
@@ -180,7 +166,6 @@ client.on('interactionCreate', async (i) => {
         }
     }
 
-    // TRATAMENTO DE TICKET
     if (i.isStringSelectMenu() && i.customId === 'select_ticket') {
         const cat = i.values[0];
         const canal = await i.guild.channels.create({
@@ -198,98 +183,75 @@ client.on('interactionCreate', async (i) => {
 });
 
 // ==========================================
-//           FUNÇÕES DE COMANDO
+//         NÚCLEO DE COMANDOS (CENTRALIZADO)
 // ==========================================
-function handleAjuda(input) {
-    const e = new EmbedBuilder()
-        .setTitle('📚 Central de Comandos - KauanHelper')
-        .setDescription('Aqui estão todos os comandos disponíveis no bot:')
-        .setColor('#2b2d31')
-        .addFields(
-            { name: '🎫 Atendimento', value: '`/ticket` ou `!ticket` (Abrir menu)\n`!close` (Fechar ticket)' },
-            { name: '💰 Vendas/Loja', value: '`!preços` (Tabela)\n`/estoque` ou `!estoque` (Ver status)\n`/pix` ou `!pix` (Chave pagamento)\n`/calc` ou `!calc` (Calculadora taxas)\n`!vouch` (Postar avaliação)' },
-            { name: '🛠️ Moderação', value: '`/lock` ou `!lock` (Painel com botões)\n`!blacklist` (Banir ID do bot)\n`!snipe` (Ver apagadas)' },
-            { name: '🌐 Geral', value: '`/id` ou `!id` (Ver ID de alguém)\n`/faq` ou `!faq` (Dúvidas frequentes)\n`!traduzir` (Tradução auto)' }
-        )
-        .setFooter({ text: 'Tigre Bux - O melhor preço sempre!' });
-    input.reply({ embeds: [e] });
-}
+async function executarComando(comando, args, context) {
+    const isSlash = context.isChatInputCommand?.();
+    const responder = (data) => isSlash ? context.reply(data) : context.reply(data);
+    const channel = context.channel;
+    const author = isSlash ? context.user : context.author;
+    const member = context.member;
 
-function handlePix(input) {
-    const embed = new EmbedBuilder()
-        .setTitle('💸 Pagamento PIX')
-        .setDescription('Chave: `SUA_CHAVE_AQUI` \n\nEnvie o comprovante no ticket!')
-        .setColor('#00FFFF');
-    input.reply({ embeds: [embed] });
-}
-
-function handleFaq(input) {
-    const embed = new EmbedBuilder()
-        .setTitle('❓ FAQ - Perguntas Frequentes')
-        .setColor('#FFA500')
-        .addFields(
-            { name: 'É confiável?', value: 'Sim! Veja nossas avaliações em <#1460383106639855748>.' },
-            { name: 'Qual o prazo?', value: 'Entrega imediata após confirmação.' },
-            { name: 'Formas de pagamento?', value: 'PIX, Cartão e Saldo.' }
+    if (comando === 'lock') {
+        if (!member.permissions.has(PermissionFlagsBits.ManageChannels)) return;
+        if (!isSlash) context.delete().catch(() => {});
+        const embedLock = new EmbedBuilder().setTitle('🔒 Painel de Controle').setDescription('Gerencie a trava e a limpeza deste canal nos botões abaixo.').setColor('#2b2d31').setFooter({ text: 'Segurança Tigre Bux' });
+        const row = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId('btn_lock').setLabel('Bloquear').setEmoji('🔒').setStyle(ButtonStyle.Danger),
+            new ButtonBuilder().setCustomId('btn_unlock').setLabel('Desbloquear').setEmoji('🔓').setStyle(ButtonStyle.Success),
+            new ButtonBuilder().setCustomId('btn_clear').setLabel('Limpar Mensagens').setEmoji('🗑️').setStyle(ButtonStyle.Secondary)
         );
-    input.reply({ embeds: [embed] });
-}
-
-function handleEstoque(input, args) {
-    if (input.user?.id === MEU_ID || input.author?.id === MEU_ID) {
-        if (args && args.length > 0) {
-            estoqueRobux = args.join(' ');
-            return input.reply("✅ Estoque atualizado!");
-        }
+        return responder({ embeds: [embedLock], components: [row] });
     }
-    input.reply(`📦 Estoque atual: **${estoqueRobux}**`);
-}
 
-function handleId(input, target) {
-    input.reply(`🆔 ID: \`${target.id}\``);
-}
+    if (comando === 'ticket') {
+        const embedTicket = new EmbedBuilder().setTitle('🎫 Central de Atendimento').setDescription('Selecione uma categoria abaixo para abrir um ticket.').setColor('#2b2d31');
+        const menu = new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId('select_ticket').setPlaceholder('Escolha o motivo...').addOptions([{ label: 'Compras', description: 'Comprar Robux ou itens.', value: 'compras', emoji: '💸' },{ label: 'Blox Fruits', description: 'Itens de Blox Fruits.', value: 'bloxfruits', emoji: '🍎' },{ label: 'Suporte', description: 'Dúvidas gerais.', value: 'suporte', emoji: '🆘' },{ label: 'Denúncias', description: 'Denunciar usuários.', value: 'denuncias', emoji: '🔨' }]));
+        return responder({ embeds: [embedTicket], components: [menu] });
+    }
 
-function handleCalc(input, valor) {
-    const v = parseInt(valor);
-    if (isNaN(v)) return input.reply("❌ Valor inválido!");
-    input.reply(`📊 Recebe: **${Math.floor(v * 0.7)}** | Cobrar: **${Math.ceil(v / 0.7)}**`);
-}
+    if (comando === 'pix') {
+        const embed = new EmbedBuilder().setTitle('💸 Pagamento PIX').setDescription('Chave: `SUA_CHAVE_AQUI` \n\nEnvie o comprovante no ticket!').setColor('#00FFFF');
+        return responder({ embeds: [embed] });
+    }
 
-async function handleLock(input) {
-    if (input.member && !input.member.permissions.has(PermissionFlagsBits.ManageChannels)) return;
-    const embedLock = new EmbedBuilder()
-        .setTitle('🔒 Painel de Controle')
-        .setDescription('Gerencie a trava e a limpeza deste canal nos botões abaixo.')
-        .setColor('#2b2d31')
-        .setFooter({ text: 'Segurança Tigre Bux' });
+    if (comando === 'faq') {
+        const embed = new EmbedBuilder().setTitle('❓ FAQ - Perguntas Frequentes').setColor('#FFA500').addFields({ name: 'É confiável?', value: 'Sim! Veja nossas avaliações em <#1460383106639855748>.' },{ name: 'Qual o prazo?', value: 'Entrega imediata após confirmação.' },{ name: 'Formas de pagamento?', value: 'PIX, Cartão e Saldo.' });
+        return responder({ embeds: [embed] });
+    }
 
-    const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId('btn_lock').setLabel('Bloquear').setEmoji('🔒').setStyle(ButtonStyle.Danger),
-        new ButtonBuilder().setCustomId('btn_unlock').setLabel('Desbloquear').setEmoji('🔓').setStyle(ButtonStyle.Success),
-        new ButtonBuilder().setCustomId('btn_clear').setLabel('Limpar Mensagens').setEmoji('🗑️').setStyle(ButtonStyle.Secondary)
-    );
-    input.reply({ embeds: [embedLock], components: [row] });
-}
+    if (comando === 'id') {
+        const target = isSlash ? (context.options.getUser('user') || author) : (context.mentions.users.first() || author);
+        return responder(`🆔 ID: \`${target.id}\``);
+    }
 
-async function handleTicket(input) {
-    const embedTicket = new EmbedBuilder()
-        .setTitle('🎫 Central de Atendimento')
-        .setDescription('Selecione uma categoria abaixo para abrir um ticket.')
-        .setColor('#2b2d31');
+    if (comando === 'estoque') {
+        if (author.id === MEU_ID && args.length > 0) {
+            estoqueRobux = args.join(' ');
+            return responder("✅ Estoque atualizado!");
+        }
+        return responder(`📦 Estoque atual: **${estoqueRobux}**`);
+    }
 
-    const menu = new ActionRowBuilder().addComponents(
-        new StringSelectMenuBuilder()
-            .setCustomId('select_ticket')
-            .setPlaceholder('Escolha o motivo...')
-            .addOptions([
-                { label: 'Compras', description: 'Comprar Robux ou itens.', value: 'compras', emoji: '💸' },
-                { label: 'Blox Fruits', description: 'Itens de Blox Fruits.', value: 'bloxfruits', emoji: '🍎' },
-                { label: 'Suporte', description: 'Dúvidas gerais.', value: 'suporte', emoji: '🆘' },
-                { label: 'Denúncias', description: 'Denunciar usuários.', value: 'denuncias', emoji: '🔨' },
-            ])
-    );
-    input.reply({ embeds: [embedTicket], components: [menu] });
+    if (comando === 'calc') {
+        const v = parseInt(args[0]);
+        if (isNaN(v)) return responder("❌ Use: /calc [valor]");
+        return responder(`📊 Recebe: **${Math.floor(v * 0.7)}** | Cobrar: **${Math.ceil(v / 0.7)}**`);
+    }
+
+    if (comando === 'ajuda' || comando === 'help') {
+        const e = new EmbedBuilder().setTitle('📚 Central de Comandos - KauanHelper').setDescription('Aqui estão todos os comandos disponíveis no bot:').setColor('#2b2d31').addFields({ name: '🎫 Atendimento', value: '`!ticket` / `/ticket`\n`!close` (Fechar ticket)' },{ name: '💰 Vendas/Loja', value: '`!preços`\n`!estoque` / `/estoque`\n`!pix` / `/pix`\n`!calc` / `/calc`\n`!vouch`' },{ name: '🛠️ Moderação', value: '`!lock` / `/lock`\n`!blacklist`\n`!snipe` / `/snipe`' },{ name: '🌐 Geral', value: '`!id` / `/id`\n`!faq` / `/faq`\n`!traduzir`' }).setFooter({ text: 'Tigre Bux - O melhor preço sempre!' });
+        return responder({ embeds: [e] });
+    }
+
+    if (comando === 'snipe') {
+        const msg = lastDeletedMessage[channel.id];
+        if (!msg) return responder("❌ Nenhuma mensagem apagada recentemente.");
+        const e = new EmbedBuilder().setAuthor({ name: msg.tag }).setDescription(msg.content || "Anexo/Imagem").setColor('#800080');
+        if (msg.image) e.setImage(msg.image);
+        return responder({ embeds: [e] });
+    }
 }
 
 client.login(process.env.TOKEN);
-            
+        
