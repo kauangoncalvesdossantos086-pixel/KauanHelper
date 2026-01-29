@@ -35,7 +35,7 @@ const client = new Client({
 // ==========================================
 //            VARIÁVEIS GLOBAIS
 // ==========================================
-const PREFIXO = "!";
+const PREFIXO = "/";
 const MEU_ID = "1228447123490476143"; 
 const CANAL_AVALIACOES_ID = "1460383106639855748"; 
 
