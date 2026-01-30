@@ -150,6 +150,9 @@ client.on('messageCreate', async (message) => {
                     { label: 'Blox Fruits', description: 'Itens de Blox Fruits.', value: 'bloxfruits', emoji: '🍎' },
                     { label: 'Suporte', description: 'Dúvidas gerais.', value: 'suporte', emoji: '🆘' },
                     { label: 'Denúncias', description: 'Denunciar usuários.', value: 'denuncias', emoji: '🔨' },
+                    {label: 'Parceria',description: 'Interesse em fechar parcerias com a loja.',value: 'parceria',emoji: '🤝',
+},
+                    
                 ])
         );
         message.channel.send({ embeds: [embedTicket], components: [menu] });
